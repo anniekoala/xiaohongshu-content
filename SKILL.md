@@ -1,6 +1,6 @@
 ---
 name: xiaohongshu-content
-description: Produce Xiaohongshu (小红书 / RED / Little Red Book) posts that align with the 2026 algorithm (CES scoring, 搜推互通 search-recommend coupling, 流量平权 traffic equality). Apply when generating Xiaohongshu titles, captions, body copy, tags, or post copy; when adapting vlog or video content into Xiaohongshu format; or whenever the user mentions 小红书, RED, 笔记, 文案, 爆款, or asks for help with Xiaohongshu publishing. Includes platform-tuned title formulas, body templates, tag strategy, sensitive-keyword avoidance list, engagement hooks for the 2026 CES formula, and a pre-publish checklist.
+description: Produce Xiaohongshu (小红书 / RED / Little Red Book) posts that align with the 2026 algorithm (CES scoring, 搜推互通 search-recommend coupling, 流量平权 traffic equality). Apply when generating Xiaohongshu titles, captions, body copy, tags, or post copy; when adapting vlog or video content into Xiaohongshu format; or whenever the user mentions 小红书, RED, 笔记, 文案, 爆款, or asks for help with Xiaohongshu publishing. Includes platform-tuned title formulas, body templates, tag strategy, sensitive-keyword avoidance list, engagement hooks for the 2026 CES formula, a pre-publish checklist, and a production pipeline that delegates video editing to the video-use skill and motion graphics / cover design to the hyperframes ecosystem (animejs, gsap, lottie, waapi, three, tailwind).
 ---
 
 # Xiaohongshu Content Skill
@@ -18,6 +18,33 @@ Apply automatically when the user:
 - Asks for content strategy for Xiaohongshu
 
 Do **not** apply for: other platforms (Douyin, Instagram, TikTok, Twitter/X). Those have different algorithms and conventions.
+
+---
+
+## Companion skills (delegation map)
+
+This skill owns **strategy** (what to write, why, how to dodge limits). It does **not** own production execution. When the user supplies raw materials, delegate to the right companion skill:
+
+| User intent | Skill to invoke | Why |
+|---|---|---|
+| Cut raw footage into a finished vlog | `video-use` | Transcript-driven cuts, automatic ffmpeg orchestration, subtitle SRT generation |
+| Burn subtitles into the video | `video-use` | Xiaohongshu does **not** support sidecar SRT — subtitles must be hardcoded |
+| Design cover with big title text | `hyperframes` + `animejs` / `gsap` | Use static frame export for the cover image |
+| TikTok / Xiaohongshu-style word-by-word captions | `hyperframes` | Built-in template for word-level karaoke captions; this style is trending in 2026 |
+| Animated lower-thirds, location pins, kinetic text | `gsap` / `animejs` / `waapi` | Pick by complexity — `waapi` for simple, `gsap` for timeline-heavy |
+| 3D opening title or volumetric scene | `three` / `typegpu` | Heavy; use only for premium one-off content |
+| Style any HTML overlay (cover, end-card) | `tailwind` | Standard utility classes |
+| Convert an existing Remotion project to web-native motion | `remotion-to-hyperframes` | Edge case; mention only if user already has Remotion code |
+
+**Default production pipeline** when user provides raw footage + a brief:
+
+1. **Cut** → invoke `video-use` to produce `final.mp4` + `subtitles.srt`
+2. **Burn subtitles** → still through `video-use` (Xiaohongshu requires hardcoded subs)
+3. **Cover** → invoke `hyperframes` to render a 3:4 (or 1:1) cover frame with title overlay
+4. **Copy** → use the formulas/templates in **this** skill (title, body, tags)
+5. **Bundle output** → assemble `final.mp4` + `cover.png` + `post.md` in the user's working folder
+
+If the user only asks for copy (text only), skip steps 1–3 and produce step 4 alone.
 
 ---
 
@@ -248,24 +275,30 @@ CES 公式里 评论×4 / 关注×8，所以每条笔记必须双钩齐发。
 - [ ] 四类分布合理
 - [ ] 不含敏感词
 
+视频与封面（如适用）
+- [ ] 字幕**烧录**进视频（Xiaohongshu 不支持外挂 SRT — 用 `video-use` 烧字幕）
+- [ ] 封面 3:4 或 1:1，主体清晰，标题大字（用 `hyperframes` 渲染单帧）
+- [ ] 视频前 3 秒有完播钩（开头悬念 / 矛盾 / 数字 / 提问）
+- [ ] 视频总时长建议 1–2 分钟（小红书 vlog 甜区）
+- [ ] 中长视频（>5 分钟）默认横屏，享 90 天推荐期
+
 发布操作
 - [ ] 周二/三/日 19:00–21:00
 - [ ] 朋友前 30 分钟互动准备好
-- [ ] 视频已经合成好字幕
-- [ ] 封面有清晰主体 + 标题大字
+- [ ] 没有重复发布同一视频（算法判重）
 ```
 
 ---
 
 ## Output format
 
-输出文案时统一用这个结构，方便用户直接复制粘贴：
+### When user wants copy only (no production)
 
 ```markdown
 # 小红书发布文案
 
 ## 封面建议
-[一句话描述选哪一帧 + 是否加大字]
+[一句话描述选哪一帧 + 是否加大字 + 推荐用什么动效（hyperframes / 静态）]
 
 ## 标题（3 选 1）
 1. [标题方案 A，标注用的是哪个 Formula]
@@ -283,6 +316,26 @@ CES 公式里 评论×4 / 关注×8，所以每条笔记必须双钩齐发。
 - 前 30 分钟操作：[具体动作]
 - 避雷检查：[确认没有的敏感词]
 ```
+
+### When user wants full production (raw footage → publishable bundle)
+
+Produce, in this exact order:
+
+1. **Plan summary** (3–5 bullets: vlog theme, narrative arc, target duration, cover concept)
+2. **Confirm with user** before any rendering
+3. **Delegate to `video-use`** → outputs `final.mp4` + `subtitles.srt`
+4. **Delegate to `hyperframes`** → outputs `cover.png` (3:4 or 1:1)
+5. **Generate `post.md`** using the copy-only template above
+6. **Final bundle** placed alongside the source footage:
+   ```
+   <working_folder>/
+   ├── final.mp4        ← subtitles burned in
+   ├── cover.png        ← 3:4 with title overlay
+   ├── post.md          ← title + body + tags + 发布建议
+   └── subtitles.srt    ← backup, in case user wants to edit in 剪映
+   ```
+
+The user uploads `final.mp4` + `cover.png` to Xiaohongshu and pastes `post.md` into the caption fields.
 
 ---
 
@@ -317,6 +370,8 @@ CES 公式里 评论×4 / 关注×8，所以每条笔记必须双钩齐发。
 - ❌ 用 ChatGPT 直接生成发布前不勾选"AI 生成"
 - ❌ 同一视频在不同笔记里反复发（算法判重）
 - ❌ 频繁编辑笔记（每次都触发重审 + 扣权重）
+- ❌ 在这个 skill 里手写 ffmpeg 命令 / 手动拼接视频 —— 永远先 delegate 给 `video-use`
+- ❌ 在这个 skill 里手写 PIL / Canvas 画封面 —— 永远先 delegate 给 `hyperframes` 生态
 
 ---
 
